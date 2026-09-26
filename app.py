@@ -122,8 +122,8 @@ if menu == '🔎 Tra cứu khách hàng':
                 sodu_hienthi = f"{tong_sodu / 1_000_000:.2f} triệu VND"
             else:
                 sodu_hienthi = f"{format_vnd(tong_sodu)} VND"
-        else:
-            sodu_hienthi = "—"
+            else:
+                sodu_hienthi = "—"
 
             c2.metric("Tổng số dư", sodu_hienthi)
             c3.metric('Kỳ hạn TB', format_month(info['kyhantb']) if 'kyhantb' in info.index else '—')
