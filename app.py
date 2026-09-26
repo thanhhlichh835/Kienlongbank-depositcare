@@ -113,7 +113,19 @@ if menu == '🔎 Tra cứu khách hàng':
 
             c1, c2, c3, c4, c5 = st.columns(5)
             c1.metric('Số tài khoản còn hiệu lực', int(info['soluong_tktg']) if 'soluong_tktg' in info.index and pd.notna(info['soluong_tktg']) else '—')
-            c2.metric('Tổng số dư', f"{format_vnd(info['tongsodutiengui'])} VND" if 'tongsodutiengui' in info.index else '—')
+            if 'tongsodutiengui' in info.index and pd.notna(info['tongsodutiengui']):
+                tong_sodu = info['tongsodutiengui']
+
+            if tong_sodu >= 1_000_000_000:
+                sodu_hienthi = f"{tong_sodu / 1_000_000_000:.2f} tỷ VND"
+            elif tong_sodu >= 1_000_000:
+                sodu_hienthi = f"{tong_sodu / 1_000_000:.2f} triệu VND"
+            else:
+                sodu_hienthi = f"{format_vnd(tong_sodu)} VND"
+        else:
+            sodu_hienthi = "—"
+
+        c2.metric("Tổng số dư", sodu_hienthi)
             c3.metric('Kỳ hạn TB', format_month(info['kyhantb']) if 'kyhantb' in info.index else '—')
             c4.metric('Lãi suất TB', format_pct(info['laisuattb']) if 'laisuattb' in info.index else '—')
             c5.metric('Đáo hạn gần nhất', f"{int(info['tksapdaohangannhat'])} ngày" if 'tksapdaohangannhat' in info.index and pd.notna(info['tksapdaohangannhat']) else '—')
