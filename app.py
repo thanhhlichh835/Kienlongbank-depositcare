@@ -116,12 +116,12 @@ if menu == '🔎 Tra cứu khách hàng':
             if 'tongsodutiengui' in info.index and pd.notna(info['tongsodutiengui']):
                 tong_sodu = info['tongsodutiengui']
 
-            if tong_sodu >= 1_000_000_000:
-                sodu_hienthi = f"{tong_sodu / 1_000_000_000:.2f} tỷ VND"
-            elif tong_sodu >= 1_000_000:
-                sodu_hienthi = f"{tong_sodu / 1_000_000:.2f} triệu VND"
-            else:
-                sodu_hienthi = f"{format_vnd(tong_sodu)} VND"
+                if tong_sodu >= 1_000_000_000:
+                    sodu_hienthi = f"{tong_sodu / 1_000_000_000:.2f} tỷ VND"
+                elif tong_sodu >= 1_000_000:
+                    sodu_hienthi = f"{tong_sodu / 1_000_000:.2f} triệu VND"
+                else:
+                    sodu_hienthi = f"{format_vnd(tong_sodu)} VND"
             else:
                 sodu_hienthi = "—"
 
