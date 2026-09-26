@@ -125,7 +125,7 @@ if menu == '🔎 Tra cứu khách hàng':
         else:
             sodu_hienthi = "—"
 
-        c2.metric("Tổng số dư", sodu_hienthi)
+            c2.metric("Tổng số dư", sodu_hienthi)
             c3.metric('Kỳ hạn TB', format_month(info['kyhantb']) if 'kyhantb' in info.index else '—')
             c4.metric('Lãi suất TB', format_pct(info['laisuattb']) if 'laisuattb' in info.index else '—')
             c5.metric('Đáo hạn gần nhất', f"{int(info['tksapdaohangannhat'])} ngày" if 'tksapdaohangannhat' in info.index and pd.notna(info['tksapdaohangannhat']) else '—')
