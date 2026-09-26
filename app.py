@@ -1,505 +1,194 @@
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from io import BytesIO
+from pathlib import Path
 
-st.set_page_config(
-    page_title="KienlongBank DepositCare",
-    page_icon="🏦",
-    layout="wide"
-)
+st.set_page_config(page_title='KienlongBank DepositCare', page_icon='🏦', layout='wide')
 
-# ===== MÀU THƯƠNG HIỆU =====
-ORANGE = "#EF7922"
-ORANGE_DARK = "#EF4F25"
-BLUE = "#30C2E3"
-BLUE_DARK = "#2790CF"
-NAVY = "#173B63"
-LIGHT_BG = "#F7F9FC"
+DATA_CIF = 'du_lieu_cap_CIF_ket_qua.xlsx'
+DATA_TK = 'du_lieu_tai_khoan_chi_tiet.xlsx'
+LOGO_FILE = 'logo_KienlongBank.png'
 
-# ===== CSS =====
-st.markdown(f"""
+st.markdown('''
 <style>
-
-/* LABEL */
-label, .stTextInput label {{
-    font-weight: 600 !important;
-}}
-
-/* KPI */
-div[data-testid="stMetric"] {{
-    border: 1px solid rgba(128,128,128,0.20) !important;
-    padding: 18px !important;
-    border-radius: 14px !important;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.04) !important;
-}}
-
-div[data-testid="stMetricValue"] {{
-    color: #2790CF !important;
-    font-weight: 700 !important;
-}}
-
-/* ALERT */
-div[data-testid="stAlert"] {{
-    border-radius: 12px !important;
-}}
-
-/* DATAFRAME */
-div[data-testid="stDataFrame"] {{
-    border-radius: 12px !important;
-    overflow: hidden;
-}}
-
-/* BRANDING */
-.brand-title {{
-    color: #2790CF;
-    font-weight: 700;
-}}
-
-.brand-accent {{
-    height: 4px;
-    width: 95px;
-    border-radius: 4px;
-    background: linear-gradient(
-        90deg,
-        #EF7922,
-        #30C2E3
-    );
-    margin-bottom: 22px;
-}}
-
+.block-container {padding-top: 1.4rem; padding-bottom: 2rem;}
+[data-testid="stMetric"] {background:#fff;border:1px solid #e6e9ef;padding:14px 16px;border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,.04);}
+.main-title {font-size:2rem;font-weight:700;margin-bottom:.25rem;}
+.subtle {color:#6b7280;font-size:.95rem;}
+.group-box {border:1px solid #e6e9ef;border-radius:14px;padding:14px 16px;margin-bottom:14px;background:#fff;}
 </style>
-""", unsafe_allow_html=True)
+''', unsafe_allow_html=True)
 
-# ===== ĐỌC DỮ LIỆU =====
-df_cif = pd.read_excel(
-    "du_lieu_cap_CIF_ket_qua.xlsx",
-    dtype={"Mã CIF": str}
-)
+def format_vnd(value):
+    if pd.isna(value):
+        return '—'
+    return f'{value:,.0f}'.replace(',', '.')
 
-df_tk = pd.read_excel(
-    "du_lieu_tai_khoan_chi_tiet.xlsx",
-    dtype={
-        "Mã CIF": str,
-        "Số tài khoản": str
-    }
-)
+def format_pct(value):
+    if pd.isna(value):
+        return '—'
+    return f'{value:.2f}%'
 
-# ===== TÍNH LẠI SỐ NGÀY ĐẾN HẠN THEO NGÀY HIỆN TẠI =====
-df_tk["Ngày đến hạn"] = pd.to_datetime(
-    df_tk["Ngày đến hạn"]
-)
+def format_month(value):
+    if pd.isna(value):
+        return '—'
+    return f'{value:.2f} tháng'
 
-ngay_hom_nay = pd.Timestamp(
-    datetime.now(
-        ZoneInfo("Asia/Ho_Chi_Minh")
-    ).date()
-)
+def trang_thai_daohan(songay):
+    if pd.isna(songay):
+        return 'Không xác định'
+    songay = int(songay)
+    if songay < 0:
+        return 'Đã đến hạn'
+    if songay == 0:
+        return 'Đáo hạn hôm nay'
+    if songay <= 7:
+        return 'Sắp đến hạn trong 7 ngày'
+    if songay <= 15:
+        return 'Sắp đến hạn trong 15 ngày'
+    if songay <= 30:
+        return 'Sắp đến hạn trong 30 ngày'
+    return 'Còn hiệu lực'
 
-df_tk["songaydenhan"] = (
-    df_tk["Ngày đến hạn"] - ngay_hom_nay
-).dt.days
+def to_excel_bytes(df):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Theo_doi_dao_han')
+    return output.getvalue()
 
-# ===== SIDEBAR =====
+@st.cache_data
+def load_data():
+    df_cif = pd.read_excel(DATA_CIF, dtype={'Mã CIF': str})
+    df_tk = pd.read_excel(DATA_TK, dtype={'Mã CIF': str, 'Số tài khoản': str})
+
+    df_cif['Mã CIF'] = df_cif['Mã CIF'].astype(str).str.strip()
+    df_tk['Mã CIF'] = df_tk['Mã CIF'].astype(str).str.strip()
+    df_tk['Số tài khoản'] = df_tk['Số tài khoản'].astype(str).str.strip()
+
+    df_tk['Ngày mở'] = pd.to_datetime(df_tk['Ngày mở'], errors='coerce')
+    df_tk['Ngày đến hạn'] = pd.to_datetime(df_tk['Ngày đến hạn'], errors='coerce')
+
+    ngay_hom_nay = pd.Timestamp(datetime.now(ZoneInfo('Asia/Ho_Chi_Minh')).date())
+    df_tk['songaydenhan'] = (df_tk['Ngày đến hạn'] - ngay_hom_nay).dt.days
+    df_tk['Trạng thái đáo hạn'] = df_tk['songaydenhan'].apply(trang_thai_daohan)
+    return df_cif, df_tk, ngay_hom_nay
+
+missing_files = [f for f in [DATA_CIF, DATA_TK] if not Path(f).exists()]
+if missing_files:
+    st.error('Không tìm thấy các tệp dữ liệu sau: ' + ', '.join(missing_files) + '. Hãy đặt chúng cùng thư mục với app.py.')
+    st.stop()
+
+df_cif, df_tk, ngay_hom_nay = load_data()
+
 with st.sidebar:
-    st.image(
-        "logo KienlongBank.png",
-        use_container_width=True
-    )
+    if Path(LOGO_FILE).exists():
+        st.image(LOGO_FILE, use_container_width=True)
+    st.markdown('### KienlongBank DepositCare')
+    st.caption('Ứng dụng thử nghiệm hỗ trợ tra cứu và theo dõi tiền gửi có kỳ hạn')
+    menu = st.radio('Chức năng', ['🔎 Tra cứu khách hàng', '⏰ Theo dõi đáo hạn'])
+    st.divider()
+    st.caption(f"Ngày hệ thống: {ngay_hom_nay.strftime('%d/%m/%Y')}")
 
-    st.markdown("---")
+if menu == '🔎 Tra cứu khách hàng':
+    st.markdown('<div class="main-title">🔎 Tra cứu khách hàng</div>', unsafe_allow_html=True)
+    st.markdown('<div class="subtle">Tra cứu thông tin tổng hợp theo Mã CIF và xem nhóm K-Means.</div>', unsafe_allow_html=True)
 
-    menu = st.radio(
-        "Chức năng",
-        [
-            "🔎 Tra cứu khách hàng",
-            "⏰ Theo dõi đáo hạn"
-        ]
-    )
-if menu == "🔎 Tra cứu khách hàng":
-    # ===== HEADER =====
-    st.markdown(f"""
-    <h1 style="margin-bottom:0;">
-        Thông tin khách hàng
-    </h1>
+    danh_sach_cif = sorted(df_cif['Mã CIF'].dropna().astype(str).unique().tolist())
+    ma_cif = st.text_input('Nhập Mã CIF', value=danh_sach_cif[0] if danh_sach_cif else '', placeholder='Ví dụ: 000100012').strip()
 
-    <p style="
-        color:#65758B;
-        margin-top:4px;
-    ">
-        Tra cứu và phân tích danh sách tài khoản tiền gửi có kỳ hạn
-    </p>
-
-    <div style="
-        height:4px;
-        width:95px;
-        border-radius:4px;
-        background:linear-gradient(
-            90deg,
-            {ORANGE},
-            {BLUE}
-        );
-        margin-bottom:22px;
-    "></div>
-    """, unsafe_allow_html=True)
-
-    # ===== TRA CỨU =====
-    cif_input = st.text_input(
-        "Nhập Mã CIF",
-        placeholder="Ví dụ: 000100003"
-    )
-
-    if cif_input:
-
-        thong_tin_cif = df_cif[
-            df_cif["Mã CIF"] == cif_input
-        ]
-
-        tai_khoan = df_tk[
-            df_tk["Mã CIF"] == cif_input
-        ]
-
-        if thong_tin_cif.empty:
-            st.warning("Không tìm thấy khách hàng.")
-
+    if ma_cif:
+        kh = df_cif[df_cif['Mã CIF'] == ma_cif]
+        if kh.empty:
+            st.warning('Không tìm thấy Mã CIF trong dữ liệu tổng hợp.')
         else:
-            st.success("Đã tìm thấy khách hàng.")
+            info = kh.iloc[0]
+            st.success('Đã tìm thấy khách hàng.')
 
-            info = thong_tin_cif.iloc[0]
-
-            st.markdown("### 👤 Thông tin khách hàng")
-
-            col1, col2 = st.columns([3, 1])
-
-            with col1:
-                st.markdown(
-                    f"""
-                    **Mã CIF:** {cif_input}  
-                    **Nhóm khách hàng:** {info['ten_cum']}
-                    """
-                )
-
-            with col2:
-                st.success(f"Cụm {int(info['cluster'])}")
+            ten_cum = info['ten_cum'] if 'ten_cum' in info.index else 'Chưa có tên cụm'
+            cluster = info['cluster'] if 'cluster' in info.index else None
+            cum_html = f"<br><b>Cụm:</b> {int(cluster)}" if pd.notna(cluster) else ''
+            st.markdown(f'''<div class="group-box"><b>Mã CIF:</b> {ma_cif}<br><b>Nhóm khách hàng:</b> {ten_cum}{cum_html}</div>''', unsafe_allow_html=True)
 
             c1, c2, c3, c4, c5 = st.columns(5)
+            c1.metric('Số tài khoản còn hiệu lực', int(info['soluong_tktg']) if 'soluong_tktg' in info.index and pd.notna(info['soluong_tktg']) else '—')
+            c2.metric('Tổng số dư', f"{format_vnd(info['tongsodutiengui'])} VND" if 'tongsodutiengui' in info.index else '—')
+            c3.metric('Kỳ hạn TB', format_month(info['kyhantb']) if 'kyhantb' in info.index else '—')
+            c4.metric('Lãi suất TB', format_pct(info['laisuattb']) if 'laisuattb' in info.index else '—')
+            c5.metric('Đáo hạn gần nhất', f"{int(info['tksapdaohangannhat'])} ngày" if 'tksapdaohangannhat' in info.index and pd.notna(info['tksapdaohangannhat']) else '—')
 
-            c1.metric(
-                "Số tài khoản",
-                int(info["soluong_tktg"])
-            )
+            st.divider()
+            tk_kh = df_tk[(df_tk['Mã CIF'] == ma_cif) & (df_tk['songaydenhan'] >= 0)].copy()
+            st.subheader('📊 Phân tích tiền gửi')
 
-            c2.metric(
-                "Tổng số dư",
-                f"{info['tongsodutiengui']/1e9:.2f} tỷ"
-            )
-
-            c3.metric(
-                "Kỳ hạn TB",
-                f"{info['kyhantb']:.1f} tháng"
-            )
-
-            c4.metric(
-                "Lãi suất TB",
-                f"{info['laisuattb']:.3f}%"
-            )
-
-            if pd.isna(info["tksapdaohangannhat"]):
-                ngay_gan_nhat = "Không có"
+            if tk_kh.empty:
+                st.info('Khách hàng không còn tài khoản tiền gửi hiệu lực tại ngày hiện tại.')
             else:
-                ngay_gan_nhat = (
-                    f"{int(info['tksapdaohangannhat'])} ngày"
-                )
+                if 'Kỳ hạn (tháng)' in tk_kh.columns and 'Số dư quy VND' in tk_kh.columns:
+                    chart_kyhan = tk_kh.groupby('Kỳ hạn (tháng)', as_index=False)['Số dư quy VND'].sum().sort_values('Kỳ hạn (tháng)').set_index('Kỳ hạn (tháng)')
+                    st.markdown('**Tổng số dư theo kỳ hạn**')
+                    st.bar_chart(chart_kyhan)
 
-            c5.metric(
-                "Đáo hạn gần nhất",
-                ngay_gan_nhat
-            )
-            st.markdown("### 📊 Phân tích tiền gửi")
+                if 'Số tài khoản' in tk_kh.columns and 'Số dư quy VND' in tk_kh.columns:
+                    chart_tk = tk_kh[['Số tài khoản', 'Số dư quy VND']].set_index('Số tài khoản')
+                    st.markdown('**Số dư theo từng tài khoản**')
+                    st.bar_chart(chart_tk)
 
-            col_chart1, col_chart2 = st.columns(2)
+                st.subheader('📋 Danh sách tài khoản tiền gửi còn hiệu lực')
+                cols = ['Số tài khoản','Ngày mở','Ngày đến hạn','Kỳ hạn (tháng)','Số dư quy VND','Lãi suất (%/năm)','songaydenhan','Trạng thái đáo hạn']
+                cols = [c for c in cols if c in tk_kh.columns]
+                tk_show = tk_kh[cols].copy()
+                if 'Ngày mở' in tk_show.columns:
+                    tk_show['Ngày mở'] = pd.to_datetime(tk_show['Ngày mở']).dt.strftime('%d/%m/%Y')
+                if 'Ngày đến hạn' in tk_show.columns:
+                    tk_show['Ngày đến hạn'] = pd.to_datetime(tk_show['Ngày đến hạn']).dt.strftime('%d/%m/%Y')
+                if 'Số dư quy VND' in tk_show.columns:
+                    tk_show['Số dư quy VND'] = tk_show['Số dư quy VND'].apply(format_vnd)
+                tk_show = tk_show.rename(columns={'songaydenhan':'Số ngày đến hạn'})
+                st.dataframe(tk_show, use_container_width=True, hide_index=True)
 
-            with col_chart1:
-                st.markdown("#### Tổng số dư theo kỳ hạn")
+else:
+    st.markdown('<div class="main-title">⏰ Theo dõi tài khoản sắp đáo hạn</div>', unsafe_allow_html=True)
+    st.markdown('<div class="subtle">Danh sách được tính tự động theo ngày hệ thống và chỉ lấy các tài khoản chưa đến hạn.</div>', unsafe_allow_html=True)
 
-                chart_kyhan = (
-                    tai_khoan
-                    .groupby("Kỳ hạn (tháng)")["Số dư quy VND"]
-                    .sum()
-                    .reset_index()
-                )
+    so_7 = int(df_tk['songaydenhan'].between(0, 7, inclusive='both').sum())
+    so_15 = int(df_tk['songaydenhan'].between(0, 15, inclusive='both').sum())
+    so_30 = int(df_tk['songaydenhan'].between(0, 30, inclusive='both').sum())
 
-                st.bar_chart(
-                    chart_kyhan,
-                    x="Kỳ hạn (tháng)",
-                    y="Số dư quy VND"
-                )
+    c1, c2, c3 = st.columns(3)
+    c1.metric('Đáo hạn trong 7 ngày', so_7)
+    c2.metric('Đáo hạn trong 15 ngày', so_15)
+    c3.metric('Đáo hạn trong 30 ngày', so_30)
 
-            with col_chart2:
-                st.markdown("#### Số dư theo từng tài khoản")
+    st.divider()
+    moc_ngay = st.selectbox('Khoảng thời gian theo dõi', [7,15,30], index=0, format_func=lambda x: f'Trong {x} ngày')
 
-                chart_taikhoan = (
-                    tai_khoan[
-                        ["Số tài khoản", "Số dư quy VND"]
-                    ]
-                    .set_index("Số tài khoản")
-                )
+    df_loc = df_tk[df_tk['songaydenhan'].between(0, moc_ngay, inclusive='both')].copy()
+    df_loc = df_loc.sort_values(by=['songaydenhan','Mã CIF'], ascending=[True,True])
+    tong_so_du = df_loc['Số dư quy VND'].sum() if 'Số dư quy VND' in df_loc.columns else 0
 
-                st.bar_chart(chart_taikhoan)
-            st.markdown("### 📋 Danh sách tài khoản tiền gửi")
-            lua_chon = st.selectbox(
-                "Lọc tài khoản sắp đến hạn",
-                [
-                    "Tất cả",
-                    "Trong 7 ngày",
-                    "Trong 15 ngày",
-                    "Trong 30 ngày"
-                ]
-            )
+    c4, c5 = st.columns(2)
+    c4.metric(f'Số tài khoản trong {moc_ngay} ngày', len(df_loc))
+    c5.metric(f'Tổng số dư trong {moc_ngay} ngày', f'{format_vnd(tong_so_du)} VND')
 
-            def trang_thai_daohan(so_ngay):
-                if so_ngay < 0:
-                    return "Đã quá hạn"
-                elif so_ngay <= 7:
-                    return "Sắp đến hạn ≤ 7 ngày"
-                elif so_ngay <= 15:
-                    return "Sắp đến hạn ≤ 15 ngày"
-                elif so_ngay <= 30:
-                    return "Sắp đến hạn ≤ 30 ngày"
-                else:
-                    return "Còn hạn"
+    st.subheader('📋 Danh sách tài khoản cần theo dõi')
+    cols = ['Mã CIF','Tên khách hàng','Số tài khoản','Ngày đến hạn','songaydenhan','Số dư quy VND','Lãi suất (%/năm)','Trạng thái đáo hạn']
+    cols = [c for c in cols if c in df_loc.columns]
+    df_show = df_loc[cols].copy()
+    if 'Ngày đến hạn' in df_show.columns:
+        df_show['Ngày đến hạn'] = pd.to_datetime(df_show['Ngày đến hạn']).dt.strftime('%d/%m/%Y')
+    if 'Số dư quy VND' in df_show.columns:
+        df_show['Số dư quy VND'] = df_show['Số dư quy VND'].apply(format_vnd)
+    df_show = df_show.rename(columns={'songaydenhan':'Số ngày đến hạn'})
+    st.dataframe(df_show, use_container_width=True, hide_index=True)
 
-            tai_khoan_hienthi = tai_khoan.copy()
-
-            tai_khoan_hienthi["Trạng thái đáo hạn"] = (
-                tai_khoan_hienthi["songaydenhan"]
-                .apply(trang_thai_daohan)
-            )
-
-    # ===== LỌC THEO THỜI GIAN ĐÁO HẠN =====
-            if lua_chon == "Trong 7 ngày":
-                bang_loc = tai_khoan_hienthi[
-                    (tai_khoan_hienthi["songaydenhan"] >= 0) &
-                    (tai_khoan_hienthi["songaydenhan"] <= 7)
-              ]
-
-            elif lua_chon == "Trong 15 ngày":
-                bang_loc = tai_khoan_hienthi[
-                    (tai_khoan_hienthi["songaydenhan"] >= 0) &
-                    (tai_khoan_hienthi["songaydenhan"] <= 15)
-                ]
-
-            elif lua_chon == "Trong 30 ngày":
-                bang_loc = tai_khoan_hienthi[
-                    (tai_khoan_hienthi["songaydenhan"] >= 0) &
-                    (tai_khoan_hienthi["songaydenhan"] <= 30)
-                ]
-
-            else:
-                bang_loc = tai_khoan_hienthi.copy()
-
-            bang_hienthi = bang_loc[
-                [
-                    "Số tài khoản",
-                    "Ngày mở",
-                    "Ngày đến hạn",
-                    "Kỳ hạn (tháng)",
-                    "Số dư quy VND",
-                    "Lãi suất (%/năm)",
-                    "songaydenhan",
-                    "Trạng thái đáo hạn"
-                ]
-            ].rename(
-                columns={
-                    "Số dư quy VND": "Số dư (VND)",
-                    "songaydenhan": "Số ngày đến hạn"
-                }
-            )
-
-            st.dataframe(
-                bang_hienthi,
-                use_container_width=True,
-                hide_index=True
-            )
-elif menu == "⏰ Theo dõi đáo hạn":
-
-    st.markdown("## ⏰ Theo dõi tài khoản sắp đáo hạn")
-
-    st.caption(
-        "Lọc toàn bộ tài khoản tiền gửi sắp đến hạn "
-        "để hỗ trợ nhân viên chăm sóc khách hàng."
-    )
-
-    # ===== KPI TỔNG QUAN ĐÁO HẠN =====
-    so_tk_7ng = len(
-        df_tk[
-            (df_tk["songaydenhan"] >= 0) &
-            (df_tk["songaydenhan"] <= 7)
-        ]
-    )
-
-    so_tk_15ng = len(
-        df_tk[
-            (df_tk["songaydenhan"] >= 0) &
-            (df_tk["songaydenhan"] <= 15)
-        ]
-    )
-
-    so_tk_30ng = len(
-        df_tk[
-            (df_tk["songaydenhan"] >= 0) &
-            (df_tk["songaydenhan"] <= 30)
-        ]
-    )
-
-    tong_du_30ng = df_tk[
-        (df_tk["songaydenhan"] >= 0) &
-        (df_tk["songaydenhan"] <= 30)
-    ]["Số dư quy VND"].sum()
-
-    k1, k2, k3, k4 = st.columns(4)
-
-    k1.metric(
-        "Đáo hạn ≤ 7 ngày",
-        so_tk_7ng
-    )
-
-    k2.metric(
-        "Đáo hạn ≤ 15 ngày",
-        so_tk_15ng
-    )
-
-    k3.metric(
-        "Đáo hạn ≤ 30 ngày",
-        so_tk_30ng
-    )
-
-    k4.metric(
-        "Tổng số dư ≤ 30 ngày",
-        f"{tong_du_30ng/1e9:.2f} tỷ"
-    )
-
-    nguong_ngay = st.selectbox(
-        "Khoảng thời gian đáo hạn",
-        [7, 15, 30]
-    )
-
-    df_daohan = df_tk.copy()
-
-    df_daohan = df_daohan[
-        (df_daohan["songaydenhan"] >= 0) &
-        (df_daohan["songaydenhan"] <= nguong_ngay)
-    ]
-
-    df_daohan = df_daohan.sort_values(
-        "songaydenhan"
-    )
-
-    def trang_thai_theodoi(so_ngay):
-        if so_ngay == 0:
-            return "Đáo hạn hôm nay"
-        elif so_ngay <= 7:
-            return "Ưu tiên cao"
-        elif so_ngay <= 15:
-            return "Theo dõi gần"
-        else:
-            return "Theo dõi"
-
-    df_daohan["Trạng thái theo dõi"] = (
-        df_daohan["songaydenhan"]
-        .apply(trang_thai_theodoi)
-    )
-
-    # ===== THỐNG KÊ DANH SÁCH ĐANG LỌC =====
-    so_tai_khoan_loc = len(df_daohan)
-
-    so_khach_hang_loc = (
-        df_daohan["Mã CIF"]
-        .nunique()
-    )
-
-    tong_so_du_loc = (
-        df_daohan["Số dư quy VND"]
-        .sum()
-    )
-
-    m1, m2, m3 = st.columns(3)
-
-    m1.metric(
-        f"Tài khoản trong {nguong_ngay} ngày",
-        so_tai_khoan_loc
-    )
-
-    m2.metric(
-        "Khách hàng cần chăm sóc",
-        so_khach_hang_loc
-    )
-
-    m3.metric(
-        "Tổng số dư đang theo dõi",
-        f"{tong_so_du_loc/1e9:.2f} tỷ"
-    )
-
-    ds_daohan_hienthi = df_daohan[
-        [
-            "Mã CIF",
-            "Tên khách hàng",
-            "Số tài khoản",
-            "Ngày đến hạn",
-            "songaydenhan",
-            'Trạng thái theo dõi',
-            "Số dư quy VND",
-            "Lãi suất (%/năm)"
-        ]
-    ].copy()
-
-    ds_daohan_hienthi = ds_daohan_hienthi.rename(
-        columns={
-            "songaydenhan": "Số ngày đến hạn",
-            "Số dư quy VND": "Số dư (VND)"
-        }
-    )
-
-    ds_daohan_hienthi["Ngày đến hạn"] = pd.to_datetime(
-        ds_daohan_hienthi["Ngày đến hạn"]
-    ).dt.strftime("%d/%m/%Y")
-
-    st.dataframe(
-        ds_daohan_hienthi,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            'Số dư (VND)': st.column_config.NumberColumn(
-                'Số dư (VND)',
-                format='%,d'
-            ),
-            'Lãi suất (%/năm)': st.column_config.NumberColumn(
-                'Lãi suất (%/năm)',
-                format='%.2f%%'
-            )
-        }
-    )
-    from io import BytesIO
-
-    # ===== XUẤT EXCEL =====
-    output = BytesIO()
-
-    with pd.ExcelWriter(
-        output,
-        engine="openpyxl"
-    ) as writer:
-        ds_daohan_hienthi.to_excel(
-            writer,
-            index=False,
-            sheet_name="Danh_sach_sap_daohan"
-        )
-
-    excel_data = output.getvalue()
-
+    export_cols = ['Mã CIF','Tên khách hàng','Số tài khoản','Ngày đến hạn','songaydenhan','Số dư quy VND','Lãi suất (%/năm)','Trạng thái đáo hạn']
+    export_cols = [c for c in export_cols if c in df_loc.columns]
+    df_export = df_loc[export_cols].copy().rename(columns={'songaydenhan':'Số ngày đến hạn'})
     st.download_button(
-        label="📥 Xuất danh sách Excel",
-        data=excel_data,
-        file_name=f"danh_sach_sap_daohan_{nguong_ngay}_ngay.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        '📥 Xuất danh sách Excel',
+        data=to_excel_bytes(df_export),
+        file_name=f"theo_doi_dao_han_{moc_ngay}_ngay_{ngay_hom_nay.strftime('%Y%m%d')}.xlsx",
+        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
