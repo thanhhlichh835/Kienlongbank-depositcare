@@ -13,9 +13,9 @@ LOGO_FILE = 'logo_KienlongBank.png'
 
 st.markdown('''
 <style>
-.block-container {padding-top: 1.4rem; padding-bottom: 2rem;}
+.block-container {padding-top: 2.5rem; padding-bottom: 2rem;}
 [data-testid="stMetric"] {background:#fff;border:1px solid #e6e9ef;padding:14px 16px;border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,.04);}
-.main-title {font-size:2rem;font-weight:700;margin-bottom:.25rem;}
+.main-title {font-size:2rem;font-weight:700;margin-top: 0.5rem;margin-bottom:0.25rem;line-height: 1.3;}
 .subtle {color:#6b7280;font-size:.95rem;}
 .group-box {border:1px solid #e6e9ef;border-radius:14px;padding:14px 16px;margin-bottom:14px;background:#fff;}
 </style>
